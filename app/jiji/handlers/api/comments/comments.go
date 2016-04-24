@@ -6,11 +6,17 @@ import (
 	"github.com/mjibson/goon"
 	"jiji/models"
 	"encoding/json"
+	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/urlfetch"
+	"google.golang.org/appengine/log"
+	"net/url"
 	"strconv"
 	"io/ioutil"
 	"io"
 	"time"
+	"fmt"
+	"os"
 )
 
 func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -65,6 +71,32 @@ func Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		if err := json.NewEncoder(w).Encode(err); err != nil {
 			panic(err)
 		}
+	}
+
+	type SlackMessage struct {
+		Text string `json:"text"`
+	}
+	slack_message := SlackMessage{}
+	slack_message.Text = fmt.Sprintf("New comment arrived (by *%s* )\n>%s", comment.Author, comment.Body)
+
+	webhook_url := os.Getenv("SLACK_WEBHOOK")
+	if webhook_url != "" {
+		ctx := appengine.NewContext(r)
+		client := urlfetch.Client(ctx)
+		values := url.Values{}
+		payload, err := json.Marshal(slack_message)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		values.Add("payload", string(payload))
+
+		resp, err := client.PostForm(webhook_url, values)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Infof(ctx, "%p %p", resp.Status, resp.Body)
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
