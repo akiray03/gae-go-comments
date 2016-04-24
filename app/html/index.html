@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Comments</title>
+    <link href="http://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.0.1/react.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.0.1/react-dom.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.5/marked.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <div id="content"></div>
+</div>
+
+<script type="text/babel">
+
+    var Comment = React.createClass({
+        rawMarkup: function() {
+            var rawMarkup = marked(this.props.children.toString(), {sanitize: true});
+            return { __html: rawMarkup };
+        },
+
+        render: function() {
+            return (
+                    <div className="comment">
+                        <h2 className="commentAuthor">
+                            {this.props.author}
+                        </h2>
+                        <span dangerouslySetInnerHTML={this.rawMarkup()} />
+                        <span>{this.props.created_at}</span>
+                    </div>
+            );
+        }
+    });
+
+    var CommentList = React.createClass({
+        render: function() {
+            var commentNodes = this.props.data.map(function(comment) {
+                return (
+                        <Comment author={comment.author} created_at={comment.created_at} key={comment.id}>
+                            {comment.body}
+                        </Comment>
+                );
+            });
+            return (
+                    <div className="commentList">
+                        {commentNodes}
+                    </div>
+            );
+        }
+    });
+
+    var CommentForm = React.createClass({
+        getInitialState: function() {
+            return {author: '', body: ''};
+        },
+        handleAuthorChange: function(e) {
+            this.setState({author: e.target.value});
+        },
+        handleBodyChange: function(e) {
+            this.setState({body: e.target.value});
+        },
+        handleSubmit: function(e) {
+            e.preventDefault();
+            var author = this.state.author.trim();
+            var body = this.state.body.trim();
+            if (!author || !body) {
+                return;
+            }
+            this.props.onCommentSubmit({author: author, body: body});
+            this.setState({author: '', body: ''});
+        },
+        render: function() {
+            return (
+                    <form className="commentForm" onSubmit={this.handleSubmit}>
+                        <h2>New Comment</h2>
+                        <div className="input-field">
+                            <input
+                                    type="text"
+                                    placeholder="Author"
+                                    value={this.state.author}
+                                    onChange={this.handleAuthorChange}
+                            />
+                        </div>
+                        <div className="input-field">
+                            <textarea
+                                    className="materialize-textarea"
+                                    placeholder="Say something..."
+                                    value={this.state.body}
+                                    onChange={this.handleBodyChange}
+                            />
+                        </div>
+                        <input className="waves-effect waves-light btn" type="submit" value="Post" />
+                    </form>
+            );
+        }
+    });
+
+    var CommentBox = React.createClass({
+        loadCommentsFromServer: function() {
+            $.ajax({
+                url: this.props.url,
+                dataType: 'json',
+                cache: false,
+                success: function(data) {
+                    this.setState({data: data});
+                }.bind(this),
+                error: function(xhr, status, err) {
+                    console.error(this.props.url, status, err.toString());
+                }.bind(this)
+            });
+        },
+        handleCommentSubmit: function(comment) {
+            var comments = this.state.data;
+            var newComments = [comment].concat(comments);
+            this.setState({data: newComments});
+            $.ajax({
+                url: this.props.url,
+                dataType: 'json',
+                type: 'POST',
+                data: JSON.stringify(comment),
+                success: function(data) {
+                    // this.setState({data: data});
+                }.bind(this),
+                error: function(xhr, status, err) {
+                    this.setState({data: comments});
+                    console.error(this.props.url, status, err.toString());
+                }.bind(this)
+            });
+        },
+        getInitialState: function() {
+            return {data: []};
+        },
+        componentDidMount: function() {
+            this.loadCommentsFromServer();
+            setInterval(this.loadCommentsFromServer, this.props.pollInterval);
+        },
+        render: function() {
+            return (
+                    <div className="commentBox">
+                        <div className="row">
+                            <div className="col s6">
+                                <CommentList data={this.state.data} />
+                            </div>
+                            <div className="col s6">
+                                <CommentForm onCommentSubmit={this.handleCommentSubmit} />
+                            </div>
+                        </div>
+                    </div>
+            );
+        }
+    });
+
+    ReactDOM.render(
+            <CommentBox url="/api/comments" pollInterval={3000} />,
+            document.getElementById('content')
+    );
+</script>
+</body>
+</html>

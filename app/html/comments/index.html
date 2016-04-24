@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Comments Index</title>
+</head>
+<body>
+<h1>Comments Index</h1>
+
+<a href="/comments/new">New</a>
+<hr>
+
+{{range .}}
+<h2><a href="/comments/{{ .Id }}">{{ .Author }}</a></h2>
+<pre>{{ .Body }}</pre>
+<hr>
+{{end}}
+
+</body>
+</html>
