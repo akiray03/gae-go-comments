@@ -8,14 +8,13 @@ import (
 	"encoding/json"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/urlfetch"
+	"google.golang.org/appengine/taskqueue"
 	"google.golang.org/appengine/log"
 	"net/url"
 	"strconv"
 	"io/ioutil"
 	"io"
 	"time"
-	"fmt"
 	"os"
 )
 
@@ -73,30 +72,20 @@ func Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		}
 	}
 
-	type SlackMessage struct {
-		Text string `json:"text"`
-	}
-	slack_message := SlackMessage{}
-	slack_message.Text = fmt.Sprintf("New comment arrived (by *%s* )\n>%s", comment.Author, comment.Body)
-
 	webhook_url := os.Getenv("SLACK_WEBHOOK")
-	if webhook_url != "" {
-		ctx := appengine.NewContext(r)
-		client := urlfetch.Client(ctx)
-		values := url.Values{}
-		payload, err := json.Marshal(slack_message)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		values.Add("payload", string(payload))
+	ctx := appengine.NewContext(r)
+	if webhook_url == "" {
+		log.Infof(ctx, "SLACK_WEBHOOK not configured.")
+	} else {
+		val := url.Values{}
+		val.Add("comment_id", strconv.FormatInt(comment.Id, 10))
 
-		resp, err := client.PostForm(webhook_url, values)
+		t := taskqueue.NewPOSTTask("/task/slack_notify", val)
+		_, err := taskqueue.Add(ctx, t, "")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.Infof(ctx, "%p %p", resp.Status, resp.Body)
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")

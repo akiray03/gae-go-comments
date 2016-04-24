@@ -7,6 +7,7 @@ import (
 	"jiji/handlers/comments"
 	api_comments "jiji/handlers/api/comments"
 	"jiji/handlers/static"
+	"jiji/handlers/task/slack_notify"
 )
 
 func init() {
@@ -21,6 +22,8 @@ func init() {
 	router.GET("/api/comments", api_comments.Index)
 	router.GET("/api/comments/:id", api_comments.Show)
 	router.POST("/api/comments", api_comments.Create)
+
+	router.POST("/task/slack_notify", slack_notify.Process)
 
 	router.GET("/", static.Index)
 
